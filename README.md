@@ -8,17 +8,7 @@ https://nadhifxfx.github.io/Web-Nexus/
 
 ## Preview
 
-> Taruh 4 gambar screenshot yang kamu kirim ke folder `assets/` dengan nama file berikut agar preview tampil di GitHub.
->
-> - `assets/preview-1.png`
-> - `assets/preview-2.png`
-> - `assets/preview-3.png`
-> - `assets/preview-4.png`
-
 ![Preview 1](assets/preview-1.png)
-![Preview 2](assets/preview-2.png)
-![Preview 3](assets/preview-3.png)
-![Preview 4](assets/preview-4.png)
 
 ## Tech Stack
 
