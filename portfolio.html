@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS | 3D Creative Studio</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Three.js untuk WebGL 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        dark: '#050505',
+                        neonBlue: '#00f3ff',
+                        neonPurple: '#bc13fe',
+                        neonPink: '#ff007f'
+                    },
+                    animation: {
+                        'gradient-x': 'gradient-x 3s ease infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        'gradient-x': {
+                            '0%, 100%': {
+                                'background-size': '200% 200%',
+                                'background-position': 'left center'
+                            },
+                            '50%': {
+                                'background-size': '200% 200%',
+                                'background-position': 'right center'
+                            },
+                        },
+                        'float': {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #050505;
+            color: #ffffff;
+            overflow-x: hidden;
+            cursor: none; /* Hide default cursor for custom cursor */
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(to bottom, #00f3ff, #bc13fe);
+            border-radius: 4px;
+        }
+
+        /* 3D WebGL Canvas Background */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Neon Text Gradient */
+        .text-gradient-neon {
+            background: linear-gradient(to right, #00f3ff, #bc13fe, #ff007f);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* Custom Cursor */
+        .cursor-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #00f3ff;
+            border-radius: 50%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            pointer-events: none;
+            transition: width 0.2s, height 0.2s, background-color 0.2s;
+            box-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff;
+        }
+        
+        .cursor-outline {
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(188, 19, 254, 0.5);
+            border-radius: 50%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            transform: translate(-50%, -50%);
+            z-index: 9998;
+            pointer-events: none;
+            transition: width 0.2s, height 0.2s, border-color 0.2s;
+            transition-timing-function: ease-out;
+        }
+
+        /* Hover States for Cursor */
+        body.hovering .cursor-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #ff007f;
+            box-shadow: 0 0 10px #ff007f, 0 0 20px #ff007f;
+        }
+        body.hovering .cursor-outline {
+            width: 60px;
+            height: 60px;
+            border-color: #ff007f;
+            background-color: rgba(255, 0, 127, 0.1);
+        }
+
+        /* 3D Tilt Card Component */
+        .tilt-card {
+            transform-style: preserve-3d;
+            transform: perspective(1000px);
+            transition: transform 0.1s ease-out;
+        }
+        .tilt-content {
+            transform: translateZ(50px); /* Memunculkan konten ke depan */
+        }
+
+        /* Reveal Animations (Scroll) */
+        .reveal {
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.8s cubic-bezier(0.5, 0, 0, 1);
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Button Glow Hover */
+        .btn-glow:hover {
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.5), 0 0 40px rgba(188, 19, 254, 0.3);
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        /* Hide cursor on mobile to prevent bugs */
+        @media (max-width: 768px) {
+            .cursor-dot, .cursor-outline { display: none; }
+            body { cursor: auto; }
+            .tilt-card { transform: none !important; transition: none !important; }
+            .tilt-content { transform: none !important; }
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-neonPurple selection:text-white">
+
+    <!-- Custom Cursor -->
+    <div class="cursor-dot"></div>
+    <div class="cursor-outline"></div>
+
+    <!-- WebGL Background -->
+    <div id="canvas-container"></div>
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 glass border-b-0 border-white/10 transition-all duration-300 py-4" id="navbar">
+        <div class="container mx-auto px-6 md:px-12 flex justify-between items-center">
+            <a href="#" class="text-2xl font-bold tracking-tighter interactive text-gradient-neon">NEXUS</a>
+            
+            <div class="hidden md:flex space-x-8 text-sm font-medium text-gray-300">
+                <a href="#about" class="hover:text-neonBlue transition-colors interactive">Tentang</a>
+                <a href="#portfolio" class="hover:text-neonPurple transition-colors interactive">Karya</a>
+                <a href="#services" class="hover:text-neonPink transition-colors interactive">Layanan</a>
+                <a href="#contact" class="hover:text-white transition-colors interactive">Kontak</a>
+            </div>
+
+            <button class="md:hidden text-white interactive">
+                <i data-lucide="menu"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- 1. Hero Section -->
+    <section class="relative h-screen flex items-center justify-center overflow-hidden pt-20">
+        <div class="container mx-auto px-6 md:px-12 relative z-10 text-center">
+            <div class="reveal active">
+                <span class="px-4 py-1 rounded-full glass text-xs font-semibold tracking-widest uppercase text-neonBlue mb-6 inline-block border-neonBlue/30">
+                    Studio Kreatif Masa Depan
+                </span>
+                <h1 class="text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-6">
+                    Merancang <br />
+                    <span class="text-gradient-neon animate-gradient-x">Realitas Digital</span>
+                </h1>
+                <p class="text-gray-400 max-w-2xl mx-auto text-lg md:text-xl mb-10">
+                    Kami memadukan desain imersif, interaksi mikro, dan teknologi 3D WebGL untuk menciptakan pengalaman visual yang tak terlupakan.
+                </p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <a href="#portfolio" class="px-8 py-4 rounded-full bg-white text-black font-semibold interactive hover:bg-gray-200 transition-all btn-glow flex items-center justify-center gap-2">
+                        Lihat Karya <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </a>
+                    <a href="#contact" class="px-8 py-4 rounded-full glass text-white font-semibold interactive hover:bg-white/10 transition-all border border-white/20">
+                        Mulai Proyek
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Scroll Indicator -->
+        <div class="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-bounce flex flex-col items-center text-gray-500 opacity-50">
+            <span class="text-xs mb-2 tracking-widest uppercase">Scroll</span>
+            <i data-lucide="mouse" class="w-5 h-5"></i>
+        </div>
+    </section>
+
+    <!-- 2. About Section -->
+    <section id="about" class="py-24 relative z-10">
+        <div class="container mx-auto px-6 md:px-12">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div class="reveal">
+                    <h2 class="text-3xl md:text-5xl font-bold mb-6">Membawa Imajinasi <br><span class="text-neonPurple">ke Dimensi Baru.</span></h2>
+                    <p class="text-gray-400 mb-6 text-lg leading-relaxed">
+                        NEXUS adalah studio agensi digital pemenang penghargaan yang berfokus pada pengalaman pengguna yang mendalam. Kami tidak hanya membuat website, kami menciptakan dunia interaktif.
+                    </p>
+                    <div class="grid grid-cols-2 gap-6 mt-10">
+                        <div class="border-l-2 border-neonBlue pl-4">
+                            <h4 class="text-4xl font-bold text-white mb-2">50+</h4>
+                            <p class="text-gray-500 text-sm">Proyek Selesai</p>
+                        </div>
+                        <div class="border-l-2 border-neonPink pl-4">
+                            <h4 class="text-4xl font-bold text-white mb-2">12</h4>
+                            <p class="text-gray-500 text-sm">Penghargaan Desain</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 3D Card Interactive -->
+                <div class="relative w-full h-[400px] reveal tilt-card rounded-2xl p-1 bg-gradient-to-br from-neonBlue via-dark to-neonPink interactive" id="about-card">
+                    <div class="absolute inset-0 bg-dark rounded-xl m-[2px]"></div>
+                    <div class="relative h-full w-full glass rounded-xl p-8 flex flex-col justify-end tilt-content overflow-hidden group">
+                        <!-- Abstract shapes inside card -->
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-neonPurple/20 rounded-full blur-3xl group-hover:bg-neonPurple/40 transition-all"></div>
+                        <div class="absolute bottom-0 left-0 w-32 h-32 bg-neonBlue/20 rounded-full blur-3xl group-hover:bg-neonBlue/40 transition-all"></div>
+                        
+                        <div class="z-10">
+                            <div class="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6 backdrop-blur-md border border-white/20 group-hover:scale-110 transition-transform">
+                                <i data-lucide="cpu" class="text-neonBlue w-8 h-8"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold mb-2">Tim Visioner</h3>
+                            <p class="text-gray-400 text-sm">Berbasis di metaverse, melayani klien global dengan standar kualitas tertinggi.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Portfolio Section -->
+    <section id="portfolio" class="py-24 relative z-10 bg-dark/50">
+        <div class="container mx-auto px-6 md:px-12">
+            <div class="text-center mb-16 reveal">
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Karya <span class="text-gradient-neon">Pilihan</span></h2>
+                <p class="text-gray-400">Eksplorasi visual dan interaksi digital terbaru kami.</p>
+                
+                <!-- Filters -->
+                <div class="flex flex-wrap justify-center gap-4 mt-8">
+                    <button class="px-6 py-2 rounded-full glass border-neonBlue/50 text-white text-sm interactive hover:bg-white/10 transition-all">Semua</button>
+                    <button class="px-6 py-2 rounded-full glass text-gray-400 text-sm interactive hover:text-white transition-all">Web 3D</button>
+                    <button class="px-6 py-2 rounded-full glass text-gray-400 text-sm interactive hover:text-white transition-all">Motion</button>
+                    <button class="px-6 py-2 rounded-full glass text-gray-400 text-sm interactive hover:text-white transition-all">Branding</button>
+                </div>
+            </div>
+
+            <!-- Portfolio Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Project 1 -->
+                <div class="group relative rounded-2xl overflow-hidden glass tilt-card interactive reveal cursor-none h-[400px]">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10"></div>
+                    <!-- Placeholder pattern background -->
+                    <div class="absolute inset-0 bg-[#111] bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:16px_16px] opacity-30 group-hover:scale-110 transition-transform duration-700"></div>
+                    
+                    <div class="absolute bottom-0 left-0 p-8 z-20 tilt-content w-full">
+                        <span class="text-xs text-neonBlue font-semibold mb-2 block">Web 3D / Fashion</span>
+                        <h3 class="text-2xl font-bold mb-2 group-hover:text-neonPurple transition-colors">Cyber Wear</h3>
+                        <p class="text-gray-400 text-sm opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                            Platform e-commerce imersif dengan fitting room 3D virtual.
+                        </p>
+                    </div>
+                    <!-- Hover Glow Effect -->
+                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none shadow-[inset_0_0_50px_rgba(188,19,254,0.3)] z-30"></div>
+                </div>
+
+                <!-- Project 2 -->
+                <div class="group relative rounded-2xl overflow-hidden glass tilt-card interactive reveal cursor-none h-[400px]" style="transition-delay: 100ms;">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10"></div>
+                    <div class="absolute inset-0 bg-[#0a0f1c] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] group-hover:scale-110 transition-transform duration-700"></div>
+                    
+                    <div class="absolute bottom-0 left-0 p-8 z-20 tilt-content w-full">
+                        <span class="text-xs text-neonPink font-semibold mb-2 block">Motion / Otomotif</span>
+                        <h3 class="text-2xl font-bold mb-2 group-hover:text-neonBlue transition-colors">Aero Dynamics</h3>
+                        <p class="text-gray-400 text-sm opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                            Showcase mobil masa depan dengan animasi scroll berbasis WebGL.
+                        </p>
+                    </div>
+                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none shadow-[inset_0_0_50px_rgba(0,243,255,0.3)] z-30"></div>
+                </div>
+
+                <!-- Project 3 -->
+                <div class="group relative rounded-2xl overflow-hidden glass tilt-card interactive reveal cursor-none h-[400px]" style="transition-delay: 200ms;">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10"></div>
+                    <div class="absolute inset-0 bg-[#1a0b1c] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(188,19,254,0.3),rgba(255,255,255,0))] group-hover:scale-110 transition-transform duration-700"></div>
+                    
+                    <div class="absolute bottom-0 left-0 p-8 z-20 tilt-content w-full">
+                        <span class="text-xs text-white font-semibold mb-2 block">Branding / Tech</span>
+                        <h3 class="text-2xl font-bold mb-2 group-hover:text-neonPink transition-colors">Quantum AI</h3>
+                        <p class="text-gray-400 text-sm opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                            Identitas visual dinamis untuk perusahaan kecerdasan buatan.
+                        </p>
+                    </div>
+                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none shadow-[inset_0_0_50px_rgba(255,0,127,0.3)] z-30"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Services Section -->
+    <section id="services" class="py-24 relative z-10">
+        <div class="container mx-auto px-6 md:px-12">
+            <div class="text-center mb-16 reveal">
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Keahlian <span class="text-gradient-neon">Utama</span></h2>
+                <p class="text-gray-400">Layanan premium untuk merevolusi brand Anda.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Service 1 -->
+                <div class="glass p-8 rounded-2xl hover:-translate-y-2 transition-transform duration-300 hover:shadow-[0_10px_30px_rgba(0,243,255,0.1)] group interactive reveal">
+                    <div class="w-14 h-14 rounded-xl bg-neonBlue/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <i data-lucide="layers" class="text-neonBlue"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">UI/UX Interaktif</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Antarmuka pengguna yang indah dikombinasikan dengan interaksi mikro yang memanjakan mata.</p>
+                </div>
+                
+                <!-- Service 2 -->
+                <div class="glass p-8 rounded-2xl hover:-translate-y-2 transition-transform duration-300 hover:shadow-[0_10px_30px_rgba(188,19,254,0.1)] group interactive reveal" style="transition-delay: 100ms;">
+                    <div class="w-14 h-14 rounded-xl bg-neonPurple/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <i data-lucide="box" class="text-neonPurple"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">WebGL & 3D</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Simulasi 3D real-time di browser untuk pengalaman pengguna yang tak tertandingi.</p>
+                </div>
+
+                <!-- Service 3 -->
+                <div class="glass p-8 rounded-2xl hover:-translate-y-2 transition-transform duration-300 hover:shadow-[0_10px_30px_rgba(255,0,127,0.1)] group interactive reveal" style="transition-delay: 200ms;">
+                    <div class="w-14 h-14 rounded-xl bg-neonPink/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <i data-lucide="video" class="text-neonPink"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Motion Design</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Animasi mulus yang menceritakan kisah brand Anda secara dinamis dari awal hingga akhir.</p>
+                </div>
+
+                <!-- Service 4 -->
+                <div class="glass p-8 rounded-2xl hover:-translate-y-2 transition-transform duration-300 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] group interactive reveal" style="transition-delay: 300ms;">
+                    <div class="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <i data-lucide="fingerprint" class="text-white"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Brand Identity</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Identitas visual yang futuristik, memastikan brand Anda menonjol di era digital baru.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. Testimonials Marquee (Clients) -->
+    <section class="py-12 border-y border-white/5 overflow-hidden relative z-10 glass bg-dark/80">
+        <div class="flex space-x-12 animate-[scroll_20s_linear_infinite] w-max items-center opacity-50 hover:opacity-100 transition-opacity">
+            <style>
+                @keyframes scroll {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                }
+            </style>
+            <!-- Duplicated for seamless loop -->
+            <h3 class="text-2xl font-bold text-transparent text-stroke">SONY</h3>
+            <i data-lucide="star" class="w-4 h-4 text-neonBlue"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">SAMSUNG</h3>
+            <i data-lucide="star" class="w-4 h-4 text-neonPurple"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">TESLA</h3>
+            <i data-lucide="star" class="w-4 h-4 text-neonPink"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">NVIDIA</h3>
+            <i data-lucide="star" class="w-4 h-4 text-white"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">META</h3>
+            <i data-lucide="star" class="w-4 h-4 text-neonBlue"></i>
+            <!-- Repeat -->
+            <h3 class="text-2xl font-bold text-transparent text-stroke">SONY</h3>
+            <i data-lucide="star" class="w-4 h-4 text-neonBlue"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">SAMSUNG</h3>
+            <i data-lucide="star" class="w-4 h-4 text-neonPurple"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">TESLA</h3>
+            <i data-lucide="star" class="w-4 h-4 text-neonPink"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">NVIDIA</h3>
+            <i data-lucide="star" class="w-4 h-4 text-white"></i>
+            <h3 class="text-2xl font-bold text-transparent text-stroke">META</h3>
+        </div>
+    </section>
+
+    <!-- 6. Contact Section -->
+    <section id="contact" class="py-24 relative z-10">
+        <div class="container mx-auto px-6 md:px-12">
+            <div class="max-w-4xl mx-auto glass p-8 md:p-12 rounded-3xl reveal relative overflow-hidden">
+                <!-- Glow decoration -->
+                <div class="absolute top-0 right-0 w-64 h-64 bg-neonPurple/10 rounded-full blur-[80px] pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 w-64 h-64 bg-neonBlue/10 rounded-full blur-[80px] pointer-events-none"></div>
+
+                <div class="text-center mb-10 relative z-10">
+                    <h2 class="text-3xl md:text-5xl font-bold mb-4">Mari <span class="text-gradient-neon">Berkolaborasi</span></h2>
+                    <p class="text-gray-400">Punya proyek luar biasa? Kirimkan pesan dan mari wujudkan bersama.</p>
+                </div>
+
+                <form class="relative z-10 space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Nama</label>
+                            <input type="text" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue transition-all interactive" placeholder="John Doe">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Email</label>
+                            <input type="email" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neonPurple focus:ring-1 focus:ring-neonPurple transition-all interactive" placeholder="john@example.com">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Pesan</label>
+                        <textarea rows="4" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neonPink focus:ring-1 focus:ring-neonPink transition-all resize-none interactive" placeholder="Ceritakan tentang proyek Anda..."></textarea>
+                    </div>
+                    <div class="text-center pt-4">
+                        <button type="button" class="px-10 py-4 rounded-full bg-white text-black font-bold interactive hover:scale-105 transition-transform btn-glow shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                            Kirim Pesan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- 7. Footer -->
+    <footer class="py-8 border-t border-white/10 relative z-10 bg-dark">
+        <div class="container mx-auto px-6 md:px-12 flex flex-col md:flex-row justify-between items-center">
+            <div class="text-2xl font-bold tracking-tighter text-white mb-4 md:mb-0">
+                NEXUS<span class="text-neonBlue">.</span>
+            </div>
+            
+            <div class="flex space-x-6 mb-4 md:mb-0">
+                <a href="#" class="text-gray-400 hover:text-neonBlue transition-colors interactive hover:-translate-y-1 transform"><i data-lucide="twitter" class="w-5 h-5"></i></a>
+                <a href="#" class="text-gray-400 hover:text-neonPurple transition-colors interactive hover:-translate-y-1 transform"><i data-lucide="instagram" class="w-5 h-5"></i></a>
+                <a href="#" class="text-gray-400 hover:text-neonPink transition-colors interactive hover:-translate-y-1 transform"><i data-lucide="dribbble" class="w-5 h-5"></i></a>
+            </div>
+
+            <p class="text-gray-500 text-sm">
+                &copy; 2024 Nexus Studio. All rights reserved.
+            </p>
+        </div>
+    </footer>
+
+    <!-- CSS untuk text stroke (Marquee) -->
+    <style>
+        .text-stroke {
+            -webkit-text-stroke: 1px rgba(255,255,255,0.3);
+        }
+    </style>
+
+    <!-- Script Utama (Interactions & WebGL) -->
+    <script>
+        // Inisialisasi Icons
+        lucide.createIcons();
+
+        // --------------------------------------------------------
+        // 1. Custom Cursor Logic
+        // --------------------------------------------------------
+        const cursorDot = document.querySelector('.cursor-dot');
+        const cursorOutline = document.querySelector('.cursor-outline');
+        const interactives = document.querySelectorAll('.interactive, a, button, input, textarea');
+
+        // Update posisi kursor
+        window.addEventListener('mousemove', (e) => {
+            const posX = e.clientX;
+            const posY = e.clientY;
+
+            cursorDot.style.left = `${posX}px`;
+            cursorDot.style.top = `${posY}px`;
+
+            // Efek trailing untuk outline
+            cursorOutline.animate({
+                left: `${posX}px`,
+                top: `${posY}px`
+            }, { duration: 500, fill: "forwards" });
+        });
+
+        // Hover effect pada elemen interaktif
+        interactives.forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                document.body.classList.add('hovering');
+            });
+            el.addEventListener('mouseleave', () => {
+                document.body.classList.remove('hovering');
+            });
+        });
+
+        // --------------------------------------------------------
+        // 2. Scroll Reveal Animation
+        // --------------------------------------------------------
+        const reveals = document.querySelectorAll('.reveal');
+        
+        const revealOnScroll = () => {
+            const windowHeight = window.innerHeight;
+            const elementVisible = 150;
+
+            reveals.forEach(reveal => {
+                const elementTop = reveal.getBoundingClientRect().top;
+                if (elementTop < windowHeight - elementVisible) {
+                    reveal.classList.add('active');
+                }
+            });
+            
+            // Navbar blur effect on scroll
+            const navbar = document.getElementById('navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('glass');
+                navbar.classList.add('shadow-lg');
+            } else {
+                navbar.classList.remove('glass');
+                navbar.classList.remove('shadow-lg');
+            }
+        };
+
+        window.addEventListener('scroll', revealOnScroll);
+        revealOnScroll(); // Trigger sekali saat load
+
+        // --------------------------------------------------------
+        // 3. 3D Tilt Effect untuk Card (Desktop)
+        // --------------------------------------------------------
+        const tiltCards = document.querySelectorAll('.tilt-card');
+        
+        tiltCards.forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                if (window.innerWidth <= 768) return; // Disable di mobile
+                
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left; // Posisi x kursor dalam kartu
+                const y = e.clientY - rect.top;  // Posisi y kursor dalam kartu
+                
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                
+                // Kalkulasi rotasi (makin jauh dari tengah, makin besar rotasi)
+                const rotateX = ((y - centerY) / centerY) * -10; // Max rotasi 10 derajat
+                const rotateY = ((x - centerX) / centerX) * 10;
+
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            });
+
+            // Reset posisi saat kursor keluar
+            card.addEventListener('mouseleave', () => {
+                if (window.innerWidth <= 768) return;
+                card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg)`;
+            });
+        });
+
+        // --------------------------------------------------------
+        // 4. Three.js WebGL Background (Hero Section Parallax)
+        // --------------------------------------------------------
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            
+            // Camera setup
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            // Renderer setup
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            // Objek 3D (Bentuk Geometris Geometris Modern)
+            const objects = [];
+            
+            // Material: Wireframe modern yang memantulkan "cahaya neon" buatan
+            const material1 = new THREE.MeshBasicMaterial({ color: 0x00f3ff, wireframe: true, transparent: true, opacity: 0.15 });
+            const material2 = new THREE.MeshBasicMaterial({ color: 0xbc13fe, wireframe: true, transparent: true, opacity: 0.15 });
+            const material3 = new THREE.MeshBasicMaterial({ color: 0xff007f, wireframe: true, transparent: true, opacity: 0.1 });
+
+            // Icosahedron (Tengah kiri)
+            const geo1 = new THREE.IcosahedronGeometry(1.5, 1);
+            const mesh1 = new THREE.Mesh(geo1, material1);
+            mesh1.position.set(-3, 1, -2);
+            scene.add(mesh1);
+            objects.push({ mesh: mesh1, speedX: 0.002, speedY: 0.003 });
+
+            // Torus (Tengah kanan)
+            const geo2 = new THREE.TorusGeometry(1.2, 0.4, 16, 50);
+            const mesh2 = new THREE.Mesh(geo2, material2);
+            mesh2.position.set(3, -1, -3);
+            scene.add(mesh2);
+            objects.push({ mesh: mesh2, speedX: 0.003, speedY: 0.002 });
+
+            // Sphere (Kecil mengambang)
+            const geo3 = new THREE.SphereGeometry(0.8, 16, 16);
+            const mesh3 = new THREE.Mesh(geo3, material3);
+            mesh3.position.set(0, 3, -4);
+            scene.add(mesh3);
+            objects.push({ mesh: mesh3, speedX: -0.001, speedY: 0.004 });
+
+            // Mouse interaction (Parallax kamera)
+            let mouseX = 0;
+            let mouseY = 0;
+            let targetX = 0;
+            let targetY = 0;
+            const windowHalfX = window.innerWidth / 2;
+            const windowHalfY = window.innerHeight / 2;
+
+            document.addEventListener('mousemove', (event) => {
+                mouseX = (event.clientX - windowHalfX);
+                mouseY = (event.clientY - windowHalfY);
+            });
+
+            // Animasi Loop
+            function animate() {
+                requestAnimationFrame(animate);
+
+                // Rotasi objek secara mandiri
+                objects.forEach(obj => {
+                    obj.mesh.rotation.x += obj.speedX;
+                    obj.mesh.rotation.y += obj.speedY;
+                });
+
+                // Efek Parallax pada Kamera berdasarkan posisi mouse
+                targetX = mouseX * 0.001;
+                targetY = mouseY * 0.001;
+                
+                camera.position.x += (targetX - camera.position.x) * 0.05;
+                camera.position.y += (-targetY - camera.position.y) * 0.05;
+                camera.lookAt(scene.position);
+
+                // Sinkronisasi dengan scroll agar objek naik saat di-scroll ke bawah
+                const scrollY = window.scrollY;
+                camera.position.y = (-targetY - camera.position.y) * 0.05 - (scrollY * 0.002);
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+
+            // Handle Resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        // Jalankan ThreeJS saat halaman dimuat
+        window.onload = initThreeJS;
+    </script>
+</body>
+</html>
